@@ -1,0 +1,372 @@
+{
+	"info": {
+		"_postman_id": "45f298e1-b802-42a9-9c0d-822a31ecada5",
+		"name": "IVAO Web App API",
+		"description": "Collection to test the NestJS API for bookings (uses 'ivao-vid' custom header).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "28964412"
+	},
+	"item": [
+		{
+			"name": "Create Booking",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code >= 400) {",
+							"  console.error('[Create Error]', pm.response.code, pm.response.text());",
+							"}",
+							"",
+							"pm.test('Status is 200/201', function () {",
+							"  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"pm.test('Response has id', function () {",
+							"  pm.expect(json).to.have.property('id');",
+							"});",
+							"",
+							"pm.environment.set('bookingId', String(json.id));",
+							"pm.environment.set('createdFromDate', json.fromDate);",
+							"pm.environment.set('createdToDate', json.toDate);",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const baseUrl = pm.environment.get('baseUrl') || pm.variables.get('baseUrl');\r",
+							"const vid = pm.environment.get('ivaoVid');\r",
+							"\r",
+							"pm.sendRequest({\r",
+							"  url: `${baseUrl}/bookings/future`,\r",
+							"  method: 'GET',\r",
+							"  header: { 'ivao-vid': vid }\r",
+							"}, (err, res) => {\r",
+							"  if (err) {\r",
+							"    console.log('[Create Pre] erro ao buscar futuras:', err);\r",
+							"    const t = new Date(); t.setUTCDate(t.getUTCDate() + 1);\r",
+							"    const from = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 9, 0, 0));\r",
+							"    const to   = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(),10, 0, 0));\r",
+							"    pm.variables.set('fromDate', from.toISOString());\r",
+							"    pm.variables.set('toDate',   to.toISOString());\r",
+							"    pm.variables.set('position', `SBSP_APP_${String(Date.now()).slice(-6)}`);\r",
+							"    pm.environment.set('dateISO', from.toISOString().slice(0,10));\r",
+							"    return;\r",
+							"  }\r",
+							"\r",
+							"  const all = res.json() || [];\r",
+							"  const mine = all.filter(b => b.vid === String(vid));\r",
+							"\r",
+							"  const overlaps = (aFrom, aTo, bFrom, bTo) =>\r",
+							"    new Date(aFrom) < new Date(bTo) && new Date(aTo) > new Date(bFrom);\r",
+							"\r",
+							"  let cursor = new Date(); cursor.setUTCDate(cursor.getUTCDate() + 1);\r",
+							"  cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), 9, 0, 0));\r",
+							"\r",
+							"  let from = new Date(cursor);\r",
+							"  let to   = new Date(cursor.getTime() + 60 * 60 * 1000);\r",
+							"  let tries = 0;\r",
+							"\r",
+							"  while (tries < 48) {\r",
+							"    const conflict = mine.some(b => overlaps(from, to, b.fromDate, b.toDate));\r",
+							"    if (!conflict) break;\r",
+							"    from = new Date(from.getTime() + 60 * 60 * 1000);\r",
+							"    to   = new Date(from.getTime() + 60 * 60 * 1000);\r",
+							"    tries++;\r",
+							"  }\r",
+							"\r",
+							"  pm.variables.set('fromDate', from.toISOString());\r",
+							"  pm.variables.set('toDate',   to.toISOString());\r",
+							"  pm.variables.set('position', `SBSP_APP_${String(Date.now()).slice(-6)}`);\r",
+							"  pm.environment.set('dateISO', from.toISOString().slice(0,10));\r",
+							"\r",
+							"  console.log('[Create Pre] escolhido:', {\r",
+							"    position: pm.variables.get('position'),\r",
+							"    fromDate: pm.variables.get('fromDate'),\r",
+							"    toDate: pm.variables.get('toDate'),\r",
+							"    ivaoVid: vid\r",
+							"  });\r",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "ivao-vid",
+						"value": "{{ivaoVid}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"position\": \"{{position}}\",\n  \"fromDate\": \"{{fromDate}}\",\n  \"toDate\": \"{{toDate}}\"\n}\n"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/bookings",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"bookings"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Future Bookings",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status is 200', function () {\r",
+							"  pm.expect(pm.response.code).to.eql(200);\r",
+							"});\r",
+							"\r",
+							"const arr = pm.response.json();\r",
+							"pm.test('Response is an array', function () {\r",
+							"  pm.expect(Array.isArray(arr)).to.be.true;\r",
+							"});\r",
+							"\r",
+							"const idVar = pm.collectionVariables.get('bookingId');\r",
+							"if (idVar) {\r",
+							"  const id = Number(idVar);\r",
+							"  pm.test('Contains the created booking', function () {\r",
+							"    pm.expect(arr.some(b => b.id === id)).to.be.true;\r",
+							"  });\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/bookings/future",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"bookings",
+						"future"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Bookings by Date",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status is 200', function () {\r",
+							"  pm.expect(pm.response.code).to.eql(200);\r",
+							"});\r",
+							"\r",
+							"const arr = pm.response.json();\r",
+							"pm.test('Response is an array', function () {\r",
+							"  pm.expect(Array.isArray(arr)).to.be.true;\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/bookings/date/{{dateISO}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"bookings",
+						"date",
+						"{{dateISO}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Booking (uses bookingId)",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const id = pm.collectionVariables.get('bookingId');\r",
+							"if (!id) {\r",
+							"  console.warn('[Update] skipping: no bookingId');\r",
+							"} else {\r",
+							"  const baseTo = pm.collectionVariables.get('createdToDate') || new Date().toISOString();\r",
+							"  const base = new Date(baseTo);\r",
+							"  const newTo = new Date(base.getTime() + 30 * 60 * 1000); // +30min\r",
+							"  pm.variables.set('newToDate', newTo.toISOString());\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const id = pm.environment.get('bookingId');\r",
+							"if (id) {\r",
+							"  const baseTo = pm.environment.get('createdToDate') || new Date().toISOString();\r",
+							"  const base = new Date(baseTo);\r",
+							"  const newTo = new Date(base.getTime() + 30 * 60 * 1000);\r",
+							"  pm.variables.set('newToDate', newTo.toISOString());\r",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "ivao-vid",
+						"value": "{{ivaoVid}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"toDate\": \"{{newToDate}}\"\n}\n"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/bookings/{{bookingId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"bookings",
+						"{{bookingId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Booking (uses bookingId)",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const idVar = pm.collectionVariables.get('bookingId');\r",
+							"if (!idVar) {\r",
+							"  pm.test('Skipped: no bookingId set (create failed)', function () { this.skip(); });\r",
+							"} else {\r",
+							"  pm.test('Status is 200', function () {\r",
+							"    pm.expect(pm.response.code).to.eql(200);\r",
+							"  });\r",
+							"  const json = pm.response.json();\r",
+							"  pm.test('Deleted flag true', function () {\r",
+							"    pm.expect(json).to.have.property('deleted', true);\r",
+							"  });\r",
+							"  pm.collectionVariables.unset('bookingId');\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "ivao-vid",
+						"value": "{{ivaoVid}}"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/bookings/{{bookingId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"bookings",
+						"{{bookingId}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "createdFromDate",
+			"value": ""
+		},
+		{
+			"key": "createdToDate",
+			"value": ""
+		}
+	]
+}
