@@ -1,13 +1,14 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Patch,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
-  Headers,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -18,13 +19,8 @@ export class BookingsController {
   constructor(private readonly service: BookingsService) {}
 
   @Get('future')
-  findAllFuture() {
+  future() {
     return this.service.findAllFuture();
-  }
-
-  @Get('date/:dateISO')
-  findByDate(@Param('dateISO') dateISO: string) {
-    return this.service.findByDate(dateISO);
   }
 
   @Post()

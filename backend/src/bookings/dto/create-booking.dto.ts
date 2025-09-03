@@ -1,12 +1,13 @@
-import { IsString, IsISO8601 } from 'class-validator';
+import { IsISO8601, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateBookingDto {
   @IsString()
-  position: string;
+  @IsNotEmpty()
+  position!: string;
 
   @IsISO8601()
-  fromDate: string;
+  fromDate!: string;
 
   @IsISO8601()
-  toDate: string;
+  toDate!: string;
 }
